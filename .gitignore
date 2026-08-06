@@ -1,0 +1,31 @@
+# Секреты и окружение
+.env
+serviceAccount.json
+serviceAccountKey.json
+
+# Локальные инструменты
+.kilo/
+.ruff_cache/
+.venv/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Сборка
+build/
+dist/
+
+# Рантайм-данные (создаются приложением при первом запуске)
+data/
+logs/
+pdfs/
+saved_books/
+downloads/
+books_export.json
+
+# Windows
+desktop.ini
+Thumbs.db
