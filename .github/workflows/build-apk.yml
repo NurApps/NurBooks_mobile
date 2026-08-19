@@ -37,7 +37,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "flet==0.24.0"
+          pip install "flet==0.24.1"
           pip install -r requirements.txt
 
       - name: Setup Flutter
@@ -50,7 +50,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --yes --verbose --build-number "${BUILD_NUMBER}"
+          flet build apk --verbose --build-number "${BUILD_NUMBER}"
 
       - name: List build output
         run: |

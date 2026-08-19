@@ -66,12 +66,16 @@ class NurBooksApp:
         )
         self.cart_visible = False
 
-        # Виджет аккаунта в верхней панели
+        # Виджет аккаунта в верхней панели (мобильная версия: только аватар)
         self.account_widget = AccountWidget(
             page=self.page,
             notification_manager=self.notification_manager,
             on_change=self._on_account_changed,
         )
+        self.account_widget.set_mobile(True)
+
+        # Корзина на мобильном занимает всю ширину экрана
+        self.cart_widget.set_mobile(True)
 
         # Создание навигации
         self.nav_bar = self._create_navigation_bar()
@@ -643,9 +647,36 @@ class NurBooksApp:
             books=books,
             on_book_click=self._on_book_selected,
             on_continue_reading=lambda b, p: self._show_pdf_reader(b, p),
+            on_refresh=self._refresh_catalog,
         )
         self.main_content.content = cp.build()
         self.current_page = "catalog"
+
+    def _refresh_catalog(self):
+        """Перезагружает каталог книг с сервера."""
+        def _reload():
+            try:
+                books = self.storage.load_books(force=True)
+                self.page.run_thread(self._rebuild_catalog_ui, books)
+            except Exception as e:
+                from src.core.logger import get_logger
+                get_logger(__name__).error(f"Ошибка обновления каталога: {e}", exc_info=True)
+
+        threading.Thread(target=_reload, daemon=True).start()
+
+    def _rebuild_catalog_ui(self, books):
+        """Перестраивает каталог в UI-потоке после обновления."""
+        if self.current_page != "catalog":
+            return
+        cp = CatalogPage(
+            page=self.page,
+            books=books,
+            on_book_click=self._on_book_selected,
+            on_continue_reading=lambda b, p: self._show_pdf_reader(b, p),
+            on_refresh=self._refresh_catalog,
+        )
+        self.main_content.content = cp.build()
+        self.page.update()
 
     def _show_book_proposal_form(self, update_ui: bool = True):
         """Показывает страницу с инструкцией как предложить книгу"""
