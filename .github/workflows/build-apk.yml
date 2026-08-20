@@ -48,9 +48,12 @@ jobs:
       - name: Disable Flutter analytics
         run: flutter config --no-analytics
 
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses
+
       - name: Build Android APK
         run: |
-          flet build apk --verbose --build-number "${BUILD_NUMBER}"
+          flet build apk --module-name src.main_mobile --verbose --build-number "${BUILD_NUMBER}"
 
       - name: List build output
         run: |
