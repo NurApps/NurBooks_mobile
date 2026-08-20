@@ -10,10 +10,10 @@ from src.core.downloader import Downloader
 from src.core.models import Book
 
 try:
-    import fitz  # pymupdf
-    PYMUPDF_AVAILABLE = True
+    import pypdfium2 as pdfium
+    PDFIUM_AVAILABLE = True
 except ImportError:
-    PYMUPDF_AVAILABLE = False
+    PDFIUM_AVAILABLE = False
 
 # Глобальная папка для временных файлов
 TEMP_DIR = os.path.join(tempfile.gettempdir(), "nurbooks_pdf_reader")
@@ -37,6 +37,44 @@ def _convert_github_url(url: str) -> str:
     if "github.com" in url and "/blob/" in url:
         return url.replace("/blob/", "/raw/")
     return url
+
+
+def _save_bitmap_png(bitmap, output_path: str):
+    """Сохраняет PdfBitmap в PNG без Pillow/numpy (их нет на Android)."""
+    import struct
+    import zlib
+
+    width = bitmap.width
+    height = bitmap.height
+    stride = bitmap.stride
+    n_channels = bitmap.n_channels
+    buf = bitmap.buffer
+
+    # Собираем scanlines (RGB), каждый ряд с байтом фильтра 0
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        row = y * stride
+        for x in range(width):
+            i = row + x * n_channels
+            raw.append(buf[i])      # R
+            raw.append(buf[i + 1])  # G
+            raw.append(buf[i + 2])  # B
+
+    compressed = zlib.compress(bytes(raw), 9)
+
+    def _chunk(tag: bytes, data: bytes) -> bytes:
+        chunk_data = struct.pack(">I", len(data)) + tag + data
+        return chunk_data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n"
+    png += _chunk(b"IHDR", ihdr)
+    png += _chunk(b"IDAT", compressed)
+    png += _chunk(b"IEND", b"")
+
+    with open(output_path, "wb") as f:
+        f.write(png)
 
 
 class PDFReaderPage:
@@ -297,10 +335,18 @@ class PDFReaderPage:
     def _show_page_image(self, image_path: str):
         """Показывает изображение страницы - ГЛАВНЫЙ МЕТОД"""
         try:
-            page_rect = self.pdf_doc[self.current_page].rect if self.pdf_doc else None
-            if page_rect:
-                scaled_width = max(1, int(page_rect.width * self.zoom))
-                scaled_height = max(1, int(page_rect.height * self.zoom))
+            with self._render_lock:
+                page = self.pdf_doc[self.current_page] if self.pdf_doc else None
+                if page:
+                    try:
+                        page_size = page.get_size()
+                    finally:
+                        page.close()
+                else:
+                    page_size = None
+            if page_size:
+                scaled_width = max(1, int(page_size[0] * self.zoom))
+                scaled_height = max(1, int(page_size[1] * self.zoom))
                 self.page_image.width = scaled_width
                 self.page_image.height = scaled_height
                 self.image_stack.width = scaled_width
@@ -340,8 +386,8 @@ class PDFReaderPage:
         print(f"[PDF] Загрузка: {self.book.title}")
         self._show_loading("Поиск книги...")
 
-        if not PYMUPDF_AVAILABLE:
-            self._show_error("❌ PyMuPDF не установлен!\n\npip install pymupdf")
+        if not PDFIUM_AVAILABLE:
+            self._show_error("❌ pypdfium2 не установлен!\n\npip install pypdfium2")
             return
 
         try:
@@ -375,7 +421,7 @@ class PDFReaderPage:
 
             # Открываем
             self._show_loading("Открытие...")
-            self.pdf_doc = fitz.open(self.pdf_path)
+            self.pdf_doc = pdfium.PdfDocument(self.pdf_path)
             self.total_pages = len(self.pdf_doc)
             print(f"[PDF] Страниц: {self.total_pages}")
 
@@ -428,7 +474,7 @@ class PDFReaderPage:
 
         for path in paths:
             try:
-                doc = fitz.open(path)
+                doc = pdfium.PdfDocument(path)
                 count = len(doc)
                 doc.close()
                 if count > 0:
@@ -457,13 +503,12 @@ class PDFReaderPage:
 
                 # Рендерим
                 page = self.pdf_doc[page_num]
-                mat = fitz.Matrix(self.zoom, self.zoom)
-                render_method = getattr(page, 'get_pixmap', None) or getattr(page, 'getPixmap', None)
-                if render_method:
-                    pix = render_method(matrix=mat, alpha=False)
-                    pix.save(output_path)
-                else:
-                    raise AttributeError("No render method available in PyMuPDF")
+                bitmap = page.render(scale=self.zoom, rev_byteorder=True)
+                try:
+                    _save_bitmap_png(bitmap, output_path)
+                finally:
+                    bitmap.close()
+                    page.close()
 
                 print(f"[PDF] Страница {page_num + 1} отрендерена (zoom={self.zoom})")
                 return output_path
@@ -738,13 +783,16 @@ class PDFReaderPage:
 
         for pg in range(self.total_pages):
             try:
-                page = self.pdf_doc[pg]
-                text_method = getattr(page, 'get_text', None) or getattr(page, 'getText', None)
-                if not text_method:
-                    continue
-                text = text_method("text") or ""
+                with self._render_lock:
+                    page = self.pdf_doc[pg]
+                    textpage = page.get_textpage()
+                    try:
+                        text = textpage.get_text_bounded() or ""
+                    finally:
+                        textpage.close()
+                        page.close()
                 if self._search_query in text.lower():
-                    found = page.search_for(self._search_query, hit_max=50)
+                    found = text.lower().count(self._search_query)
                     results.append((pg, found))
             except Exception:
                 continue
@@ -753,7 +801,7 @@ class PDFReaderPage:
         self._search_match_index = 0
         self._search_is_loading = False
 
-        total = sum(len(r[1]) for r in results)
+        total = sum(r[1] for r in results)
         pages = len(results)
         self.search_match_label.value = f"{total} совп. на {pages} стр." if total else "Нет совпадений"
 
