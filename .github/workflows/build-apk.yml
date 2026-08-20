@@ -53,7 +53,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --module-name src.main_mobile --verbose --build-number "${BUILD_NUMBER}"
+          flet build apk --verbose --build-number "${BUILD_NUMBER}"
 
       - name: List build output
         run: |
