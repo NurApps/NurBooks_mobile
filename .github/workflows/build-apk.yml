@@ -52,6 +52,15 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses
 
+      - name: Patch build template (wakelock_plus fix)
+        run: |
+          mkdir -p ~/.cookiecutters/flet-dev
+          git clone --quiet https://github.com/flet-dev/flet-build-template.git ~/.cookiecutters/flet-dev/flet-build-template
+          cd ~/.cookiecutters/flet-dev/flet-build-template
+          git checkout --quiet 0.24.1
+          sed -i 's/wakelock_plus:.*/wakelock_plus: 1.2.8/' pubspec.yaml
+          grep wakelock pubspec.yaml
+
       - name: Build Android APK
         run: |
           flet build apk --exclude server tests build --verbose --build-number "${BUILD_NUMBER}"
