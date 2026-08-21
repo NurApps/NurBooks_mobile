@@ -96,4 +96,4 @@ jobs:
           path: build/apk
           if-no-files-found: error
           compression-level: 0
-          retention-days: 30
+          retention-days: 3
