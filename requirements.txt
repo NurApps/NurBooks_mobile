@@ -1,4 +1,4 @@
 customtkinter==5.2.2
-pypdfium2
-flet==0.25.2
+pypdfium2==5.13.0
+flet==0.24.1
 Requests==2.33.1

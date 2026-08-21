@@ -13,3 +13,10 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
+
+[tool.flet]
+org = "com.nurapps"
+product = "NurBooks"
+
+[tool.flet.flutter.pubspec.dependency_overrides]
+wakelock_plus = "1.2.8"
