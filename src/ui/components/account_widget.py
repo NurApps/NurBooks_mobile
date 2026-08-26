@@ -49,7 +49,7 @@ class AccountWidget:
         self._mobile = mobile
         if hasattr(self, "_button"):
             self._button = self._build_button()
-        return self._button
+        return getattr(self, "_button", None)
 
     def refresh(self):
         """Перестраивает кнопку под текущего пользователя."""
