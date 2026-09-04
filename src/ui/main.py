@@ -40,14 +40,23 @@ class NurBooksApp:
         # Мобильная версия: окно занимает весь экран автоматически.
         # page.window настраивается только там, где доступен.
 
-        # Инициализация менеджеров
-        self.notification_manager = NotificationManager()
-        self.storage = Storage()
-        self.settings = self.storage.load_settings()
-        self.downloader = Downloader(download_path=self.settings.default_path, database=self.storage.database)
-        self.notification_manager.set_sound_enabled(getattr(self.settings, "sound_notifications", True))
-        self.notification_manager.set_enabled(getattr(self.settings, "background_notifications", True))
-        if self.settings.theme == "dark":
+        # Инициализация менеджеров (с防御ой от крэшей на Android)
+        try:
+            self.notification_manager = NotificationManager()
+            self.storage = Storage()
+            self.settings = self.storage.load_settings()
+            self.downloader = Downloader(download_path=self.settings.default_path, database=self.storage.database)
+        except Exception as e:
+            from src.core.logger import get_logger
+            get_logger(__name__).critical(f"Ошибка инициализации хранилища: {e}", exc_info=True)
+            self.notification_manager = NotificationManager()
+            self.storage = Storage()
+            self.settings = self.storage.load_settings()
+            self.downloader = None
+
+        self.notification_manager.set_sound_enabled(getattr(self.settings, "sound_notifications", True) if self.settings else True)
+        self.notification_manager.set_enabled(getattr(self.settings, "background_notifications", True) if self.settings else True)
+        if self.settings and self.settings.theme == "dark":
             self.page.theme_mode = ft.ThemeMode.DARK
 
         # Состояние приложения
@@ -103,7 +112,11 @@ class NurBooksApp:
         )
 
         # Инициализация начальной страницы (синхронно, page.add ещё не вызван)
-        self._build_catalog_page()
+        try:
+            self._build_catalog_page()
+        except Exception as e:
+            from src.core.logger import get_logger
+            get_logger(__name__).error(f"Ошибка загрузки каталога: {e}", exc_info=True)
 
         # Создание основного макета (мобильный: верхняя панель + содержимое + нижняя навигация)
         self.page.add(
@@ -644,7 +657,7 @@ class NurBooksApp:
         books = self.storage.load_books()
         cp = CatalogPage(
             page=self.page,
-            books=books,
+            books=books or [],
             on_book_click=self._on_book_selected,
             on_continue_reading=lambda b, p: self._show_pdf_reader(b, p),
             on_refresh=self._refresh_catalog,
@@ -657,7 +670,7 @@ class NurBooksApp:
         def _reload():
             try:
                 books = self.storage.load_books(force=True)
-                self.page.run_thread(self._rebuild_catalog_ui, books)
+                self.page.run_thread(self._rebuild_catalog_ui, books) if hasattr(self.page, 'run_thread') else None
             except Exception as e:
                 from src.core.logger import get_logger
                 get_logger(__name__).error(f"Ошибка обновления каталога: {e}", exc_info=True)
