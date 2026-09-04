@@ -86,6 +86,8 @@ jobs:
           grep wakelock '{{cookiecutter.out_dir}}/pubspec.yaml'
 
       - name: Build Android APK
+        env:
+          NURBOOKS_API_KEY: ${{ secrets.NURBOOKS_API_KEY }}
         run: |
           flet build apk --exclude server tests build --verbose --build-number "${BUILD_NUMBER}" --template "${RUNNER_TEMP}/flet-build-template"
 
