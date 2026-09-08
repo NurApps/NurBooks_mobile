@@ -22,6 +22,7 @@ class MyLibraryPage:
         self.on_read_book = on_read_book
         self._search_timer = None
         self.search_query = ""
+        self._init_ui()
 
     def _is_mobile(self) -> bool:
         """Определяет, мобильный ли экран"""
@@ -31,6 +32,7 @@ class MyLibraryPage:
             width = window.width if window is not None else 1200
         return width < 700
 
+    def _init_ui(self):
         self.downloaded_books: list[str] = []
         self.saved_books: list[str] = []
         self.favorite_books: list[str] = []
@@ -257,7 +259,6 @@ class MyLibraryPage:
                         message=f"Не удалось скачать '{book.title}': {ex}",
                         type="error"
                     )
-        import threading
         threading.Thread(target=download, daemon=True).start()
 
     def _create_favorite_book_item(self, book_id: str) -> ft.Control:
