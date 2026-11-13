@@ -88,13 +88,11 @@ jobs:
           # Patch AndroidManifest.xml to add required permissions
           MANIFEST_PATH='{{cookiecutter.out_dir}}/android/app/src/main/AndroidManifest.xml'
           if [ -f "$MANIFEST_PATH" ]; then
-            # Add permissions before </manifest>
-            sed -i '/<\/manifest>/i \
-    <uses-permission android:name="android.permission.INTERNET" />\
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST_PATH"
+            # Use awk to insert permissions before </manifest> - more reliable than sed
+            awk -v perms='    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' '
+              /<\/manifest>/ { print perms }
+              { print }
+            ' "$MANIFEST_PATH" > "$MANIFEST_PATH.tmp" && mv "$MANIFEST_PATH.tmp" "$MANIFEST_PATH"
             echo "AndroidManifest.xml patched with permissions"
             grep -A5 "uses-permission" "$MANIFEST_PATH"
           fi
