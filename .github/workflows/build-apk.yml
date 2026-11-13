@@ -77,13 +77,27 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses
 
-      - name: Patch build template (wakelock_plus fix)
+      - name: Patch build template (wakelock_plus fix + Android permissions)
         run: |
           git clone --quiet https://github.com/flet-dev/flet-build-template.git "${RUNNER_TEMP}/flet-build-template"
           cd "${RUNNER_TEMP}/flet-build-template"
           git checkout --quiet 0.24.1
           sed -i 's/wakelock_plus:.*/wakelock_plus: 1.2.8/' '{{cookiecutter.out_dir}}/pubspec.yaml'
           grep wakelock '{{cookiecutter.out_dir}}/pubspec.yaml'
+          
+          # Patch AndroidManifest.xml to add required permissions
+          MANIFEST_PATH='{{cookiecutter.out_dir}}/android/app/src/main/AndroidManifest.xml'
+          if [ -f "$MANIFEST_PATH" ]; then
+            # Add permissions before </manifest>
+            sed -i '/<\/manifest>/i \
+    <uses-permission android:name="android.permission.INTERNET" />\
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST_PATH"
+            echo "AndroidManifest.xml patched with permissions"
+            grep -A5 "uses-permission" "$MANIFEST_PATH"
+          fi
 
       - name: Build Android APK
         env:

@@ -20,3 +20,13 @@ product = "NurBooks"
 
 [tool.flet.flutter.pubspec.dependency_overrides]
 wakelock_plus = "1.2.8"
+
+[tool.flet.android]
+min_sdk_version = 21
+target_sdk_version = 34
+permissions = [
+    "android.permission.INTERNET",
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
+]
